@@ -1,0 +1,8 @@
+{
+    "[fortran_fixed-form]": {
+        "editor.rulers": [
+            6,
+            73
+        ]
+    },
+}

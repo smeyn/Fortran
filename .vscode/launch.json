@@ -1,0 +1,24 @@
+{
+    "version": "0.0.1",
+    "configurations": [
+        {
+            "name": "mnsurf (GDB)",
+            "type": "cppdbg",
+            "request": "launch",
+            "targetArchitecture": "x86",
+            "program": "${workspaceRoot}\\fitpack\\Surfit\\test\\fortran\\mnsurf.exe",
+            "miDebuggerPath": "gdb.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceRoot}\\fitpack\\Surfit\\test\\fortran\\",
+            "externalConsole": true,
+            "preLaunchTask": "buildMnSurf"
+        },
+        {
+            "name": "Intel Debug Attach",
+            "type": "cppvsdbg",
+            "request": "attach",
+            "processId": "${command:pickProcess}"
+        }
+    ]
+}
