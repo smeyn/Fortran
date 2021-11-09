@@ -364,7 +364,7 @@ c
     kmax = max(spline.kx, spline.ky)
     km1 = kmax + 1
     km2 = km1 + 1
-    @info "checking IOPT"
+    @info "checking IOPT = $iopt"
     if (iopt < (-1) || iopt > 1) 
         @warn "iopt invalid: $iopt"
         spline.errMsg = "iopt invalid: $iopt"
@@ -515,8 +515,10 @@ c
             zeros(Float64, ib3)  # h(m)
          )
    
-        ier = fpsurf(iopt,m,spline ,s, nxest, nyest, eps,tol,maxit,nest,km1,km2,ib1,ib3,ncest,nrint,
-         nreg, wrk1,wrk2; io=io)
+        ier = fpsurf!(iopt,m,spline ,s, nxest, nyest, eps,tol,maxit,
+               #nest,km1,km2,ib1,ib3,ncest,nrint,
+               #nreg, 
+         wrk1,wrk2; io=io)
         @label  L70 
         @info "Surfit L70. ier = $ier"
         return ier

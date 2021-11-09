@@ -4,13 +4,13 @@ using Surfit
 using Surfit.Bispev
 using Test
 
-println(names(Surfit;imported=true, all=true))
-println(names(Bispev;imported=true, all=true))
+#println(names(Surfit;imported=true, all=true))
+#println(names(Bispev;imported=true, all=true))
 
 include("logger.jl")
 
 
-
+"""test function for surface fitting"""
 function zzz(x, y)
     r = x*x + y*y
     z = cos(r) * exp(-r)
@@ -35,13 +35,14 @@ function showIER(io, ier)
     elseif ier == 10 println(io, "error.error. on entry, the input data are controlled on validity the following restrictions must be satisfied.")
     end
 end
+ 
 @testset "mnsurf" begin
     include("mnsurf.jl")
 end
-
+ 
 @testset "Surfit" begin
 
-    iopt = 0 #Surfit.START_MINIMAL_KNOTS
+    iopt = 1 #Surfit.START_MINIMAL_KNOTS
     x = [
         0.0,
         0.0,
@@ -59,6 +60,8 @@ end
         3.1,
         3.1,
         3.1,
+        2.7, 
+        1.5
     ]
     y = [
         0.0,
@@ -77,32 +80,17 @@ end
         0.1,
         2.0,
         3.0,
+        1.1,
+        1.9
     ]
-    z = [
-        0.0,
-        0.0,
-        0.1,
-        0.2,
-        0.2,
-        0.3,
-        0.5,
-        0.5,
-        0.5,
-        0.5,
-        0.7,
-        0.9,
-        1.2,
-        1.0,
-        1.2,
-        3.1,
-    ]
+    z = [zzz(xx,yy) for (xx,yy) in zip(x,y)] 
     w = ones(Float64, length(z))
     m = length(x)
     #tx = zeros(Float64,10)
     #ty = zeros(Float64,10)
     kx = 3
     ky = 3
-    s = 100.0
+    s = 1000.0
     eps = 0.0000000001
     println("calling surfit")
     nxest= 2 * (kx + 1)
@@ -157,14 +145,13 @@ end
     with_logger(basicLogger) do
         result = Surfit.surfit(iopt, spline,  s,   eps  )
         showIER(result)
-
     end
     show(stdout, spline)
 
     @info "Validate"
 
     x_test = [ 0.0, 1.1, 2.2, 3.1]
-    y_test = [  0.0,  0.1, 2.0, 3.0, 0.0]
+    y_test = [  0.0,  0.1, 2.0, 3.0, 3.2]
     z_result = zeros(length(x_test), length(y_test))
     z_expected = zeros(length(x_test), length(y_test))
     for r in 1:length(x_test)

@@ -65,6 +65,9 @@ function show(io::IO, spl::Spline)
         offset = (row-1)* nr_x_cols + 1
         println(io_compact, "$(_reallycompact(spl.c[offset:offset + nr_x_cols]))" )
     end
+    println(io_compact, """  fp=$(spl.fp)
+     errMsg = '$(spl.errMsg)'
+    """)
 end
 
 function _reallycompact(a::Vector;min_elems=9, format="%.3f")

@@ -1,14 +1,16 @@
+"""
+calculates the parameters of a givens transformation .
+args:
+piv: float, the pivot value, first non zero element in vector 1
+ww: float, the element i  vector 2 that needs to become zero
+
+returns:
+- vcos: the cosine value for the ,atrix rotations
+- vsin : the sine value for the matrix rotation
+
+referntce:  Diercks p 56
+"""
 function fpgivs(piv, ww)
-# c  subroutine fpgivs calculates the parameters of a givens
-# c  transformation .
-# c  ..
-# c  ..scalar arguments..
-      # real piv,ww,cos,sin
-# c  ..local scalars..
-#      real dd,one,store
-# c  ..function references..
-      # real abs,sqrt
-# c  ..
   #@debug "fpgivs(piv=$piv, ww=$ww)" 
     one = 0.1e+01
     oldww = ww

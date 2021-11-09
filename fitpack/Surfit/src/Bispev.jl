@@ -74,52 +74,33 @@ c    e-mail : Paul.Dierckx@cs.kuleuven.ac.be
 c
 c  latest update : march 1987
 c
-c  ..scalar arguments..
-      integer nx,ny,kx,ky,mx,my,lwrk,kwrk,ier
-c  ..array arguments..
-      integer iwrk(kwrk)
-      real tx(nx),ty(ny),c((nx-kx-1)*(ny-ky-1)),x(mx),y(my),z(mx*my),
-     * wrk(lwrk) =#     
-# c  ..local scalars..
-      # integer i,iw,lwest
+=#     
     i = 0; iw = 0;lwest = 0
-# c  ..
 # c  before starting computations a data check is made. if the input data
 # c  are invalid control is immediately repassed to the calling program.
     ier = 10
-    #lwest = (kx + 1) * mx + (ky + 1) * my
-    #if (lwrk < lwest) @goto L100 end
-    #if (kwrk < (mx + my)) @goto L100 end
-    #if (mx - 1) @goto L100
-    #elseif (mx - 1) == 0 @goto L30
-    #    else @goto L10
-    # end
+
     mx = length(x)
-    my=length(y)
-    @label L10
-    for i in 2:mx # do 20 i=2,mx
-        if (x[i] < x[i - 1]) @goto L100 end
-        @label L20 # continue
+    my = length(y)
+    for i in 2:mx  
+        @assert x[i] >=  x[i - 1] " Xvalues of grid must be increasing"
     end
-    @label L30 
-    if (my - 1) < 0 @goto L100
-    elseif (my - 1) == 0 @goto L60
-   else @goto L40 end
-    @label L40
+    #@label L30 
+    @assert my >= 1 " my must specify the number of grid points along the y-axis"
+    
+    
     for i in 2:my # do 50 i=2,my
-        if (y[i] < y[i - 1]) @goto L100 end
-      
-        @label L50 # continue
+        @assert y[i] >= y[i - 1] "y values must be increasing"        
     end
-    @label L60
+    
     ier = 0
     iw = mx * (spline.kx + 1) + 1
     wrk1 = zeros(mx, spline.kx+1)
     wrk2 = zeros(my, spline.ky+1)
-    iwrk1 = zeros(Int,  mx)
+    iwrk1 = zeros(Int, mx)
     iwrk2 = zeros(Int, my)
-    fpbisp(spline, x, y, z, wrk1, wrk2, iwrk1, iwrk2)
-    @label L100  
+    fpbisp!(spline, x, y, z, wrk1, wrk2, iwrk1, iwrk2)
+    
     return ier, z
 end
 end

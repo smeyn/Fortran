@@ -63,40 +63,17 @@ function write_sp(io,sp, in, k1)
     write(io, '\n')
 end   
 
+"""
+calculate surface splines.
 
-function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
-        eta,tol,maxit,nmax,km1,km2,ib1,ib3,nc,intest,nrest,  
+"""
+function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
+        eta,tol,maxit, 
         wrk1::lwork1 ,wrk2::lwork2;io=nothing)
-    #=  
-    #..scalar arguments..
-        real xb,xe,yb,ye,s,eta,tol,fp,fp0
-        integer iopt,m,kxx,kyy,nxest,nyest,maxit,nmax,km1,km2,ib1,ib3,
-        * nc,intest,nrest,nx0,ny0,lwrk,ier
-    #..array arguments..
-        real x(m),y(m),z(m),w(m),spline.tx[nmax),spline.ty[nmax),c(nc),fpint[intest),
-        * coord(intest),f(nc),ff(nc),a(nc,ib1),q(nc,ib3),bx(nmax,km2),
-        * by(nmax,km2),spx(m,km1),spy(m,km1),h(ib3),wrk(lwrk)
-        integer index(nrest),nummer(m)
-    #..local scalars..
-        real acc,arg,v_cos,dmax,fac1,fac2,fpmax,fpms,f1,f2,f3,hxi,p,pinv,
-        * piv,p1,p2,p3,sigma,sin,sq,store,wi,x0,x1,y0,y1,zi,eps,
-        * rn,one,con1,con9,con4,half,ten
-        integer i,iband,iband1,iband3,iband4,ibb,ichang,ich1,ich3,ii,
-        * in,irot,iter,i1,i2,i3,j,jrot,jxy,j1,kx,kx1,kx2,ky,ky1,ky2,l,
-        * la,lf,lh,lwest,lx,ly,l1,l2,n,ncof,nk1x,nk1y,nminx,nminy,nreg,
-        * nrint,num,num1,nx,nxe,nxx,ny,nye,nyy,n1,rank
-    #..local arrays..
-        real hx(6),hy(6)
-    #..function references..
-        real abs,fprati,sqrt
-        integer min0
-    #..subroutine references..
-    #  fpback,fpbspl,fpgivs,fpdisc,fporde,fprank,fprota
-    #.. =#
-    #  set constants
-    @info "fpsurf start"
-    @debug "wrk1.h= $(wrk1.h)"
-    @debug "nxest: $nxest, nyest:$nyest, nc:$nc. Size c:$(length(spline.c))"
+
+    #@info "fpsurf start"
+    #@debug "wrk1.h= $(wrk1.h)"
+    #@debug "nxest: $nxest, nyest:$nyest, nc:$nc. Size c:$(length(spline.c))"
     # set the scope of these variables
     iband = 0; iband1 = 0; iband3 = 0; iband4 = 0; 
     nreg = 0
@@ -157,14 +134,15 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
     nxe = nxest
     nye = nyest
     eps = sqrt(eta)
+    
     if (iopt < 0) @goto  L20 end
-        #   #calculation of acc, the absolute tolerance for the root of f(p)=s.
+    #calculation of acc, the absolute tolerance for the root of f(p)=s.
     acc =  tol*s
     if (iopt == 0) @goto  L10 end
     if (wrk1.fp0 > s) @goto  L20 end
     # initialization for the least-squares polynomial.
     @label L10 
-    @info "Label fpsurf L10"
+    @info "IOPT >= 0"
     nminx = 2 * kx1
     nminy = 2 * ky1
     nx = nminx
@@ -172,7 +150,7 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
     ier = -2
     @goto  L30  
     @label L20  
-    @info "Label fpsurf L20"
+    @info "fp0 > s or iopt < 0"
     nx = spline.nx #nx0
     ny = spline.ny # ny0
    # main loop for the different sets of knots. m is a save upper bound
@@ -264,13 +242,13 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
         @label L130
         iband = iband1 + 1
         # arrange the data points according to the panel they belong to.
-        fporde(spline.x, spline.y, m, kx, ky, spline.tx, nx, spline.ty, ny, wrk1.nummer, wrk1.index, nreg)
+        fporde!(spline.x, spline.y, m, kx, ky, spline.tx, nx, spline.ty, ny, wrk1.nummer, wrk1.index, nreg)
         # find ncof, the number of b-spline coefficients.
         wrt_index(io, wrk1.index, nreg)
         nk1x = nx - kx1
         nk1y = ny - ky1
         ncof = nk1x * nk1y
-        @debug "nk1x:$nk1x  nk1y:$nk1y  ncof:$ncof"
+        #@debug "nk1x:$nk1x  nk1y:$nk1y  ncof:$ncof"
         # initialize the observation matrix a.
         for i in 1:ncof # do 140 i=1,ncof
             wrk1.f[i] = 0.
@@ -288,7 +266,7 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
           # matrix according to a data point of the panel.
             num1 = num - 1
             lx = Int(trunc(num1 / nyy))
-            @debug "lx ($lx) = Int(trunc($num1 / $nyy))"
+            #@debug "lx ($lx) = Int(trunc($num1 / $nyy))"
             l1 = lx + kx1
             ly = num1 - lx * nyy
             l2 = ly + ky1
@@ -300,19 +278,20 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
           # fetch a new data point.
             wi = spline.w[in]
             zi = spline.z[in] * wi
+            @debug "spline.z[in] * wi = $(spline.z[in]) * $wi"
           # evaluate for the x-direction, the (kx+1) non-zero b-splines at x(in).
-            fpbspl(spline.tx, nx, kx, spline.x[in], l1, hx)
+            fpbspl!(spline.tx, nx, kx, spline.x[in], l1, hx)
             #@debug hx
           # evaluate for the y-direction, the (ky+1) non-zero b-splines at y(in).
-            fpbspl(spline.ty, ny, ky, spline.y[in], l2, hy)
+            fpbspl!(spline.ty, ny, ky, spline.y[in], l2, hy)
             #@debug hy
           # store the value of these b-splines in spx and spy respectively.
             for i in 1:kx1 # do 160 i=1,kx1
-                @debug "wrk1.spx[$in,$i] = $(hx[i])"
+                #@debug "wrk1.spx[$in,$i] = $(hx[i])"
                 wrk1.spx[in,i] = hx[i]
             end #  @label L160      continue
             for i in 1:ky1# do 170 i=1,ky1
-                @debug "wrk1.spy[$in,$i] = $(hy[i])"
+                #@debug "wrk1.spy[$in,$i] = $(hy[i])"
                 wrk1.spy[in, i] = hy[i]
             end#  @label L170      continue
           # initialize the new row of observation matrix.
@@ -334,7 +313,7 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
                 @label L200  #    continue
             end
 
-            @debug "rotate the row into triangle by givens transformations ."
+            #@debug "rotate the row into triangle by givens transformations ."
             # rotate the row into triangle by givens transformations .
             irot = jrot
             for i in 1:iband # do 220 i=1,iband
@@ -355,38 +334,40 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
                 end#  @label L210        continue
                 @label L220 
             end #        @label L220      continue
-            @debug "add the contribution of the row to the sum of squares of residual right hand sides."
+            #@debug "add the contribution of the row to the sum of squares of residual right hand sides."
             # add the contribution of the row to the sum of squares of residual
             # right hand sides.
             @label L230  
+            @debug "zi[in=$in]=$zi"
             fp = fp + zi * zi
-            @debug "find the number of the next data point in the panel."
+           # @debug "find the number of the next data point in the panel."
             # find the number of the next data point in the panel.
             @label L240     
             in = wrk1.nummer[in]
             @goto  L150
             @label L250  #  continue
         end
-        @debug "find dmax, the maximum value for the diagonal elements in the reduced traingle"
+        @debug "fp=$fp"
+        #@debug "find dmax, the maximum value for the diagonal elements in the reduced traingle"
         # find dmax, the maximum value for the diagonal elements in the reduced
         # triangle.
         dmax = 0.
-        @debug "ncof: $ncof"
+        #@debug "ncof: $ncof"
         for i in 1:ncof # do 260 i=1,ncof
             if (wrk1.a[i, 1] <= dmax) @goto  L260 end
             dmax = wrk1.a[i, 1]
             @label L260   # continue
         end
-        @debug "check whether the observation matrix is rank deficient."
+       # @debug "check whether the observation matrix is rank deficient."
         # check whether the observation matrix is rank deficient.
         sigma = eps * dmax
         for i in 1:ncof # do 270 i=1,ncof
             if (wrk1.a[i, 1] <= sigma) @goto  L280 end
         end #  @label L270    continue
         # backward substitution in case of full rank.
-        @debug "backward substitution in case of full rank."
-        fpback(wrk1.a, wrk1.f, ncof, iband, spline.c, nc)
-        @debug "after fpback c:" spline.c[1:ncof]
+        #@debug "backward substitution in case of full rank."
+        fpback!(wrk1.a, wrk1.f, ncof, iband, spline.c)
+        #@debug "after fpback c:" spline.c[1:ncof]
         write_c(io, spline.c, ncof)
         rank = ncof
         for i in 1:ncof #        do 275 i=1,ncof
@@ -397,7 +378,7 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
         # in case of rank deficiency, find the minimum norm solution.
         # check whether there is sufficient working space
         @label L280   
-        @debug "in case of rank deficiency, find the minimum norm solution."
+        #@debug "in case of rank deficiency, find the minimum norm solution."
         lwest = ncof * iband + ncof + iband
         #TODO Fix this size check
         #if (lwrk < lwest) @goto  L780 end
@@ -411,13 +392,13 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
         lf = 1
         lh = lf + ncof
         la = lh + iband
-        @debug "Observation matrix" wrk1.q[1:ncof, 1:iband]
-        sq, rank = fprank(wrk1.q, wrk1.ff, ncof, iband,  sigma, spline.c,  wrk2)#wrk(la), wrk(lf), wrk(lh))
-        @debug "after fprank c:" spline.c[1:ncof]
+        #@debug "Observation matrix" wrk1.q[1:ncof, 1:iband]
+        sq, rank = fprank!(wrk1.q, wrk1.ff, ncof, iband,  sigma, spline.c,  wrk2)#wrk(la), wrk(lf), wrk(lh))
+        #@debug "after fprank c:" spline.c[1:ncof]
         write_c(io, spline.c, ncof)
         #@debug "Observation matrix psot rank" wrk1.q[1:ncof, 1:iband]
         
-        @debug "fprank determined rank=$rank with $sq as squared residual"
+        #@debug "fprank determined rank=$rank with $sq as squared residual"
         for i in 1:ncof # do 295 i=1,ncof
             wrk1.q[i, 1] = wrk1.q[i, 1] / dmax
         end #  @label L295    continue
@@ -426,11 +407,12 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
         fp = fp + sq
         @label L300  
        
-        @debug "L300"
+        #@debug "L300"
         if (ier == (-2))
              wrk1.fp0 = fp end
         # test whether the least-squares spline is an acceptable solution.
         if (iopt < 0) @goto  L820 end
+        @debug "fp=$fp"
         fpms = fp - s
         if (abs(fpms) <= acc) # if(fp) 815,815,820
             if fp < 0 @goto L815
@@ -439,12 +421,16 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
             end        
         end
         # test whether we can accept the choice of knots.
-        if (fpms < 0.) @goto  L430 end
+        if (fpms < 0.) 
+            @info "fpms($fpms) < 0.0"
+            @goto  L430 
+        end
         # test whether we cannot further increase the number of knots.
         if (ncof > m)
-            @debug "ncof ($ncof) > m ($m)"
-            @debug "nk1x: $nk1x"
-             @goto  L790 
+            #@debug "ncof ($ncof) > m ($m)"
+            #@debug "nk1x: $nk1x"
+
+            @goto  L790 
         end
         ier = 0
         # search where to add a new knot.
@@ -468,9 +454,9 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
             in = wrk1.index[num]
             @label L330  
             if (in == 0) @goto  L360 end
-            @debug "wrk1.spx[$in,1:$kx1] $(wrk1.spx[in,1:kx1])"
+           # @debug "wrk1.spx[$in,1:$kx1] $(wrk1.spx[in,1:kx1])"
             write_sp(io, wrk1.spx, in, kx1)
-            @debug "wrk1.spy[$in,1:$ky1] $(wrk1.spy[in,1:ky1])"
+            #@debug "wrk1.spy[$in,1:$ky1] $(wrk1.spy[in,1:ky1])"
             write_sp(io, wrk1.spy, in, ky1)
             store = 0.
             i1 = jrot
@@ -560,7 +546,7 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
     @label L430  
     @debug "@ label 430"
     if (ier == (-2)) 
-        @debug "L430 jumping to L830. nk1x = $nk1x"
+        @debug "L430. as ier = -2 jumping to L830. nk1x = $nk1x"
         @goto  L830 end
         #= 
         cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -589,14 +575,14 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
     if (nk1x == kx1) @goto  L440 end
         # evaluate the discotinuity jumps of the kx-th order derivative of
         # the b-splines at the knots spline.tx[l),l=kx+2,...,nx-kx-1.
-    fpdisc(spline.tx, nx, kx2, wrk1.bx, nmax)
+    fpdisc!(spline.tx, nx, kx2, wrk1.bx)
     @label L440
     ky2 = ky1 + 1
         # test whether there are interior knots in the y-direction.
     if (nk1y == ky1) @goto  L450 end
         # evaluate the discontinuity jumps of the ky-th order derivative of
         # the b-splines at the knots spline.ty[l),l=ky+2,...,ny-ky-1.
-    fpdisc(spline.ty, ny, ky2, wrk1.by, nmax)
+    fpdisc!(spline.ty, ny, ky2, wrk1.by)
         # initial value for p.
     @label L450  
     p1 = 0.
@@ -749,7 +735,7 @@ function fpsurf(iopt,m, spline::Spline,s,nxest,nyest,
         end  # @label L660 #   continue
         # backward substitution in case of full rank.
         @debug "calling fpback" 
-        fpback(wrk1.q, wrk1.ff, ncof, iband4,  spline.c, nc)
+        fpback!(wrk1.q, wrk1.ff, ncof, iband4,  spline.c)
         @debug "after fpback c:" spline.c[1:ncof]
         rank = ncof
         @goto  L675

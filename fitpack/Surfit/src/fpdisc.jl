@@ -1,17 +1,16 @@
-function fpdisc(t, n, k2, b, nest)
-   #  subroutine fpdisc calculates the discontinuity jumps of the kth
-   #  derivative of the b-splines of degree k at the knots t(k+2)..t(n-k-1)
-   #  ..scalar arguments..
-   #   integer n,k2,nest
-   #  ..array arguments..
-   #   real t(n),b(nest,k2)
-   #  ..local scalars..
-   #   real an,fac,prod
-   #   integer i,ik,j,jk,k,k1,l,lj,lk,lmk,lp,nk1,nrint
-   #  ..local array..
-   #   real h(12)
-   #  ..
-   h=zeros(12)
+"""
+calculates the discontinuity jumps of the kth derivative 
+of the b-splines of degree k at the knots t(k+2)..t(n-k-1)
+
+Args:
+- t  Vector(float): knots vector
+- n  Int: nr knots in t
+- k2 Int: degree of derivative
+- b Array : modified array containing the derivatives
+"""
+function fpdisc!(t, n, k2, b)
+ 
+    h=zeros(12)
     k1 = k2 - 1
     k = k1 - 1
     nk1 = n - k1

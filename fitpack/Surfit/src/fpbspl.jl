@@ -1,4 +1,10 @@
-function fpbspl(t, n, k, x, l, h)
+"""fpbspl evaluates the (k+1) non-zero b-splines of
+  degree k at t(l) <= x < t(l+1) using the stable recurrence
+  relation of de boor and cox.
+  
+  updates h
+  """
+function fpbspl!(t, n, k, x, l, h)
    #  subroutine fpbspl evaluates the (k+1) non-zero b-splines of
    #  degree k at t(l) <= x < t(l+1) using the stable recurrence
    #  relation of de boor and cox.
@@ -14,7 +20,8 @@ function fpbspl(t, n, k, x, l, h)
    #  ..local arrays..
    #   real hh(5)
    #  ..
-   #@info "fpbspl:t $t[1:n]\n       n:$n, k:$k, x:$x, l:$l\n       h $h" 
+   
+   @assert (n >= l + k)  "Error indexing outside valid knots"
    hh = zeros(Float64, 5)
     one = 0.1e+01
     h[1] = one
