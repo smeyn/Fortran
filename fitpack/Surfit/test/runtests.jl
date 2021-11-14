@@ -1,6 +1,7 @@
 
 using Surfit
 #include("../src/Bispev.jl")
+
 using Surfit.Bispev
 using Test
 
@@ -152,7 +153,12 @@ end
 
     x_test = [ 0.0, 1.1, 2.2, 3.1]
     y_test = [  0.0,  0.1, 2.0, 3.0, 3.2]
+
+
     z_result = zeros(length(x_test), length(y_test))
+    ier, z1 = Bispev.bispev(spline,
+        x_test, y_test, z_result) 
+        
     z_expected = zeros(length(x_test), length(y_test))
     for r in 1:length(x_test)
         for c in 1:length(y_test)
@@ -160,11 +166,9 @@ end
         end
     end
     
-    ier, z1 = Bispev.bispev(spline,
-        x_test, y_test, z_result)  
-      
-    
     @info "z_result" z_result
     @info "z_expected" z_expected
-    
+
+    @test isapprox(z_result, z_expected; rtol=1e-2)
+        
 end
