@@ -31,9 +31,6 @@ mutable struct lwork2
 end
 
 mutable struct Spline
-    x::Vector
-    y::Vector
-    z::Vector
     w::Vector
     xb::Float64
     xe::Float64

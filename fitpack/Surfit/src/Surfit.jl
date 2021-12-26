@@ -17,10 +17,24 @@ include("fprota.jl")
 include("Bispev.jl")
 
 
+"""
+Calculate the surface spline based on a series of x,y,z values.
 
-function surfit(iopt, spline::Spline,  s, eps;io=nothing)
+# Arguments
+- iopt: option for operation
+- x (vector float): x values
+- y (vector float): y values
+- z (vector float): z values
+- spline: contains solution
+- s: limit for for fp
+- eps: threshold for determining the effective rank 
+       of an over-determined linear system of equations. 
+       0 < eps < 1. 1e-14 is fine
+- io: optional io buffer for debugging
+"""
+function surfit(iopt,x, y, z, spline::Spline,  s, eps;io=nothing)
 #= 
-       c given the set of data points (x(i),y(i),z(i)) and the set of positive
+c given the set of data points (x(i),y(i),z(i)) and the set of positive
 c numbers w(i),i=1,...,m, subroutine surfit determines a smooth bivar-
 c iate spline approximation s(x,y) of degrees kx and ky on the rect-
 c angle xb <= x <= xe, yb <= y <= ye.
@@ -337,40 +351,41 @@ c
    #   ..subroutine references..
    #     fpsurf
    #   .. =#
-    @info "surfit start"
+    @debug "surfit start"
+    #@debug "x[1] $(x[1]),  y[1]  $(y[1])"
 #  we set up the parameters tol and maxit.
     maxit = 20
     tol = 0.1e-02
    #   before starting computations a data check is made. if the input data
    #   are invalid,control is immediately repassed to the calling program.
     ier = 10
-    @info "checking eps"
+    @debug "checking eps"
     if (eps <= 0. || eps >= 1.)
         @warn "eps out of range: $eps"
         @goto L70 end
-   @info "checking kx"        
+        @debug "checking kx"        
    if (spline.kx <= 0 || spline.kx > 5) 
         @warn "kx out of range: $(spline.kx)"
         spline.errMsg = "kx out of range: $(spline.kx)"
         @goto L70 end
     kx1 = spline.kx + 1
-    @info "checking ky"        
+    @debug "checking ky"        
     if (spline.ky <= 0 || spline.ky > 5) 
         @warn "ky out of range: $(spline.ky)"
         spline.errMsg = "ky out of range: $(spline.ky)"
         @goto L70 end
-    @info "first 3 checks"    
+        @debug "first 3 checks"    
     ky1 = spline.ky + 1
     kmax = max(spline.kx, spline.ky)
     km1 = kmax + 1
     km2 = km1 + 1
-    @info "checking IOPT = $iopt"
+    @debug "checking IOPT = $iopt"
     if (iopt < (-1) || iopt > 1) 
         @warn "iopt invalid: $iopt"
         spline.errMsg = "iopt invalid: $iopt"
         @goto L70 end
 
-    m = min(length(spline.x), length(spline.y), length(spline.z))
+    m = min(length(x), length(y), length(z))
    if (m < (kx1 * ky1)) 
       @warn "m < kx1 *ky1  ($m < $kx1 * $ky1)"
       spline.errMsg = "m < kx1 *ky1  ($m < $kx1 * $ky1)"
@@ -380,6 +395,8 @@ c
     nxest =  length(spline.tx)
     nyest =  length(spline.ty)
     if length(spline.c) <   (nxest - spline.kx - 1) * (nyest - spline.ky - 1)
+        @warn spline
+        @warn "nxest = $nxest. nyest=$nyest"
         @warn "c is too small $(length(spline.c)). must be at least $( (nxest - spline.kx - 1) * (nyest - spline.ky - 1))."
         spline.errMsg = "c is too small $(length(spline.c)). must be at least $( (nxest - spline.kx - 1) * (nyest - spline.ky - 1))."
         @goto L70 
@@ -411,7 +428,7 @@ c
     ib1 = jb1
     ib3 = ky1 * nxk + 1
     @label  L10
-    @info "Surfit L10"
+    @debug "Surfit L10"
     # lwest = ncest * (2 + ib1 + ib3) + 2 * (nrint + nest * km2 + m * km1) + ib3
     kwest = m + nreg
     # if (lwrk1 < lwest || kwrk < kwest) @goto L70 end
@@ -423,14 +440,14 @@ c
         if (spline.w[i] <= 0.) 
          spline.errMsg = "(spline.w[$i] $(spline.w[i]) <= 0."
          @goto L70 end
-        if (spline.x[i] < spline.xb || spline.x[i] > spline.xe) 
-         spline.errMsg = "x[$i]>xb || x[$i]>xe  $(spline.x[i]) < $(spline.xb) || $(spline.x[i]) > $(spline.xe)"
+        if (x[i] < spline.xb || x[i] > spline.xe) 
+         spline.errMsg = "x[$i]>xb || x[$i]>xe  $(x[i]) < $(spline.xb) || $(x[i]) > $(spline.xe)"
          @goto L70 end
-        if (spline.y[i] < spline.yb || spline.y[i] > spline.ye) 
-         spline.errMsg = "y[$i]>yb || y[$i]>ye  $(spline.y[i]) < $(spline.yb) || $(spline.y[i]) > $(spline.xye)"
+        if (y[i] < spline.yb || y[i] > spline.ye) 
+         spline.errMsg = "y[$i]>yb || y[$i]>ye  $(y[i]) < $(spline.yb) || $(y[i]) > $(spline.xye)"
          @goto L70 end
     end #  @label  L20  continue
-    @info "surfit L20"
+    @debug "surfit L20"
     if (iopt >= 0) @goto L50 end
     if (spline.nx < nminx || spline.nx > nxest) 
       spline.errMsg = "(spline.nx < nminx || spline.nx > nxest) ($(spline.nx) < $(nminx) || $(spline.nx) > $nxest) "
@@ -515,12 +532,12 @@ c
             zeros(Float64, ib3)  # h(m)
          )
    
-        ier = fpsurf!(iopt,m,spline ,s, nxest, nyest, eps,tol,maxit,
+        ier = fpsurf!(iopt,m,x,y,z, spline ,s, nxest, nyest, eps,tol,maxit,
                #nest,km1,km2,ib1,ib3,ncest,nrint,
                #nreg, 
          wrk1,wrk2; io=io)
         @label  L70 
-        @info "Surfit L70. ier = $ier"
+        @debug "Surfit L70. ier = $ier"
         return ier
     end
     return ier

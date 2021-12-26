@@ -1,7 +1,6 @@
 
 using Surfit
 #include("../src/Bispev.jl")
-
 using Surfit.Bispev
 using Test
 
@@ -10,6 +9,16 @@ using Test
 
 include("logger.jl")
 
+#=
+include("fortranresults.jl")
+
+@testset "fortranresults" begin
+    LogLevel(Logging.Debug)
+
+    sections = readResults("fortran/surfout.txt")
+    @test length(sections) == 6
+end
+=#
 
 """test function for surface fitting"""
 function zzz(x, y)
@@ -38,6 +47,7 @@ function showIER(io, ier)
 end
  
 @testset "mnsurf" begin
+    
     include("mnsurf.jl")
 end
  
@@ -130,23 +140,28 @@ end
     tx = zeros(Float64, 20)
     ty = zeros(Float64, 20)
     fp = 0.0
-    c = zeros(Float64, (nxest-kx-1)*(nyest-ky-1))
+    c = zeros(Float64, (length(tx)-kx-1)*(length(ty)-ky-1))
     nmax = min(length(tx), length(ty))
 
-    #=
+  
     spline = Surfit.Spline(
-        x, y, z, w,
+        w,
         0.0, 3.1, 0.0, 3.0,
-        kx, ky, nx, tx, ny, ty, c, fp  
-    ) =#
+        kx, ky, nx, tx, ny, ty, c, fp,""  
+    )
     
-    spline = Surfit.prepareSpline(x, y, z, w, 3, 3, 20, 20)
+    #spline = Surfit.prepareSpline(x, y, z, w, 3, 3, 20, 20)
     
-    basicLogger = MinLevelLogger(FileLogger("debug.log"), Logging.Debug)
+    basicLogger = MinLevelLogger(FileLogger("debug.log"), Logging.Info)
     with_logger(basicLogger) do
-        result = Surfit.surfit(iopt, spline,  s,   eps  )
+        result =  Surfit.surfit(iopt, x,y,z,spline,  s, eps)
         showIER(result)
+        if result > 0
+            @error spline.errMsg
+        end
+        @test result <= 0
     end
+    @info "spline results"
     show(stdout, spline)
 
     @info "Validate"

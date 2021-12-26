@@ -8,6 +8,8 @@
 
 using Printf
 
+# fortransections = readResults("fortran/surfout.txt")
+
 function readInt(io)
     txt = readline(io)
     return parse(Int, txt)
@@ -38,7 +40,7 @@ function readData(filepath)
             x[i], y[i], z[i] = read3Floats(io)
          # y[i]=read(io, Float64)
          # z[i]=read(io, Float64)
-            println("$i: $(x[i]), $(y[i]), $(z[i])")
+           # println("$i: $(x[i]), $(y[i]), $(z[i])")
         end
         delta = readFloat(io)
         println("delta: $delta")
@@ -63,6 +65,9 @@ function dumpResults(path, spline, s, iopt, ier)
         println(io, "  ") # write(6,965) (ty(i),i=1,ny)
         for i in 1:spline.nx 
             @printf(io, " % .3f", spline.tx[i]) 
+            if mod(i,8) == 0
+                @printf(io, "\n")
+            end
         end
         println(io, " ") # write(6,965) (tx(i),i=1,nx)
         println(io, "total number of knots in the y-direction =$(spline.nx)") # write(6,970) ny
@@ -70,13 +75,19 @@ function dumpResults(path, spline, s, iopt, ier)
         println(io, "  ") # write(6,965) (ty(i),i=1,ny)
         for i in 1:spline.ny 
             @printf(io, " % .3f", spline.ty[i]) 
+            if mod(i,8) == 0
+                @printf(io, "\n")
+            end
         end
         println(io, " ") # write(6,965) (tx(i),i=1,nx)
 
         nc = (spline.nx - spline.kx - 1) * (spline.ny - spline.ky - 1)
         println(io, "b-spline coefficients") # write(6,975)
         for i in 1:nc 
-            @printf(io, " % .3f", spline.c[i])
+            @printf(io, " % .4f", spline.c[i])
+            if mod(i,8) == 0
+                @printf(io, "\n")
+            end
         end
         println(io, "") # write(6,980) (c(i),i=1,nc)
    # c  evaluation of the spline approximation.
@@ -100,6 +111,7 @@ function dumpResults(path, spline, s, iopt, ier)
     end
 
 end   
+global x, y, z
 x, y, z, delta = readData("data/dasurf.txt")
 m = length(x)
 w = zeros(length(x))
@@ -147,7 +159,7 @@ eps = 0.1e-05
 eps = 0.1e-14
 #  main loop for the different spline approximations.
 println("Spline with $m elements")
-spline = Surfit.prepareSpline(copy(x[1:m]), copy(y[1:m]), copy(z[1:m]), w, 3, 3, nxest, nyest;
+spline = Surfit.prepareSpline(copy(x[1:m]), copy(y[1:m]),  w, 3, 3, nxest, nyest;
    xb=xb, xe=xe, yb=yb, ye=ye)
 
 iopt = 0   
@@ -277,7 +289,9 @@ for is in 1:6 # do 300 is=1,6
     basicLogger = MinLevelLogger(FileLogger("mnsurf-$is.log"), Logging.Debug)
     with_logger(basicLogger) do
         open("mnsurfout-$is.txt", "w") do io
-            ier = Surfit.surfit(iopt, spline,  s,   eps;io=io)
+            @debug "BEFORE: x[1] $(x[1]),  y[1]  $(y[1])"
+            ier = Surfit.surfit(iopt, x,y,z,spline,  s,   eps;io=io)
+            @debug "AFTER x[1] $(x[1]),  y[1]  $(y[1])"
         end
         println("Test case $is")
         showIER(ier)

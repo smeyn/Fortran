@@ -3,7 +3,10 @@ using ..Types
 include("fpbspl.jl")
 include("fpbisp.jl")
 
-
+"""Evaluate on a grid (x(i),y(j)),i=1,...,mx; j=1,...
+   ,my a bivariate spline s(x,y) of degrees kx and ky, given in the
+   b-spline representation.
+c"""
 function bispev(spline::Spline,x::Vector, y::Vector, z::Matrix)
 #=            
 c  subroutine bispev evaluates on a grid (x(i),y(j)),i=1,...,mx; j=1,...

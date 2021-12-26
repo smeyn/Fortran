@@ -1,7 +1,7 @@
 
 using Printf
 
-  function prepareSpline(x, y, z, w, kx, ky,max_x_knots, max_y_knots;
+  function prepareSpline(x, y, w, kx, ky,max_x_knots, max_y_knots;
       xb=nothing, xe=nothing, yb=nothing, ye=nothing, io=nothing)
       if isnothing(xb)  xb=min(x...) end
       if isnothing(xe)  xe=max(x...) end
@@ -13,7 +13,7 @@ using Printf
       ny=0
       fp=0.0
       c = zeros(Float64, (max_x_knots-kx-1)*(max_y_knots-ky-1))
-      return Spline(x, y, z, w,
+      return Spline(w,
                     xb, xe, yb, ye, 
                     kx, ky, nx, tx, ny,ty, c, fp, "")  
   end
@@ -46,11 +46,12 @@ end
 function wrt_index(io,index, nreg)
     if isnothing(io) return end
     @printf(io, "debug index =======\n")
-    @printf(io, "debug %4i\n", nreg)
+    @printf(io, "nreg %4i\n", nreg)
     for i in 1:nreg
-        @printf(io, "%4i ", index[i])
+        @printf(io, "%3i: %4i ", i, index[i])
     end
     write(io, '\n')
+    @printf(io, "debug index ------\n")
 end   
 
 
@@ -83,21 +84,25 @@ end
 - tol (float): tolerance for smoothing abs(fp-s)/s <= tol. 
              0.001 is a good value
 - maxit (int): max nr of iterations before giving up
-- wrk1: work alrea
+- wrk1: work area
 - wrk2: work area
 - io: optional io for debugging
 # Updates
     - spline
 
 """
-function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
+function fpsurf!(iopt,m, x,y,z, spline::Spline,s,nxest,nyest,
         eta,tol,maxit, 
         wrk1::lwork1 ,wrk2::lwork2;io=nothing)
 
     #@info "fpsurf start"
     #@debug "wrk1.h= $(wrk1.h)"
-    #@debug "nxest: $nxest, nyest:$nyest, nc:$nc. Size c:$(length(spline.c))"
+    #@debug "x: $(length(x)), y:$(length(y)), z:$(length(z))."
+    #@debug "nxest: $nxest, nyest:$nyest,   Size c:$(length(spline.c))"
     # set the scope of these variables
+    #@debug "x[1] $(x[1]),  y[1]  $(y[1])"
+
+
     iband = 0; iband1 = 0; iband3 = 0; iband4 = 0; 
     nreg = 0
     nk1x = 0
@@ -179,9 +184,10 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
         nx = spline.nx #nx0
         ny = spline.ny # ny0
     end
-   # main loop for the different sets of knots. m is a save upper bound
+   # main loop for the different sets of knots. m is a safe upper bound
    # for the number of trials.
     for iter in 1:m # do 420 iter=1,m
+       #@debug "x[1] $(x[1]),  y[1]  $(y[1])"
        # @info "iter: $iter"
        # find the position of the additional knots which are needed for the
        # b-spline representation of s(x,y).
@@ -205,26 +211,30 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
         nrint = nxx + nyy
         nreg = nxx * nyy
         #@debug "nxx ($nxx) = nx($nx) - 2 * kx1($kx1) + 1"
-        # @debug "nyy ($nyy) = ny($ny) - 2 * ky1($ky1) + 1"
-        #@debug "nrint ($nrint) = $nxx + $nyy"
-        #@debug "nreg ($nreg) = $nxx * $nyy"
+        #@debug "nyy ($nyy) = ny($ny) - 2 * ky1($ky1) + 1"
+        #@debug "Number total intervals: nrint ($nrint) = $nxx + $nyy"
+        #@debug "Number Panels: nreg ($nreg) = $nxx * $nyy"
         # find the bandwidth of the observation matrix a.
         # if necessary, interchange the variables x and y, in order to obtain
         # a minimal bandwidth.
         iband1 = kx * (ny - ky1) + ky
         l = ky * (nx - kx1) + kx
-       
-        if iband > 1
+        
+        if iband1 > l
             iband1 = l
-            (ichang, spline, x0,x1,y0,y1, nx,ny, nxe, nye, nxx, nyy, kx, ky) = swap_xy!(m,
-                ichang, spline, x0,x1,y0,y1, nx,ny, nxe, nye, nxx, nyy, kx, ky
-            )            
+            #@debug "calling swapxy" 
+            (ichang,x, y, spline, x0,x1,y0,y1, nx,ny, nxe, nye, nxx, nyy, kx, ky) = swap_xy!(m,
+                ichang, x, y, spline, x0,x1,y0,y1, nx,ny, nxe, nye, nxx, nyy, kx, ky
+            )   
+            kx1 = kx + 1
+            ky1 = ky + 1    
+            # @debug "ichang=$ichang"             
         end
         iband = iband1 + 1
         # arrange the data points according to the panel they belong to.
-        fporde!(spline.x, spline.y, m, kx, ky, spline.tx, nx, spline.ty, ny, wrk1.nummer, wrk1.index, nreg)
+        fporde!(x, y, m, kx, ky, spline.tx, nx, spline.ty, ny, wrk1.nummer, wrk1.index, nreg)
         # find ncof, the number of b-spline coefficients.
-        #wrt_index(io, wrk1.index, nreg)
+        wrt_index(io, wrk1.index, nreg)
         nk1x = nx - kx1
         nk1y = ny - ky1
         ncof = nk1x * nk1y
@@ -258,13 +268,13 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
             while in != 0
                 # fetch a new data point.
                 wi = spline.w[in]
-                zi = spline.z[in] * wi
-                @debug "spline.z[in] * wi = $(spline.z[in]) * $wi"
+                zi = z[in] * wi
+               #@debug "z[in=$in] * wi = $(z[in]) * $wi"
                 # evaluate for the x-direction, the (kx+1) non-zero b-splines at x(in).
-                fpbspl!(spline.tx, nx, kx, spline.x[in], l1, hx)
+                fpbspl!(spline.tx, nx, kx, x[in], l1, hx)
                 #@debug hx
                 # evaluate for the y-direction, the (ky+1) non-zero b-splines at y(in).
-                fpbspl!(spline.ty, ny, ky, spline.y[in], l2, hy)
+                fpbspl!(spline.ty, ny, ky, y[in], l2, hy)
                 #@debug hy
                 # store the value of these b-splines in spx and spy respectively.
                 for i in 1:kx1 
@@ -300,7 +310,7 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
                 # add the contribution of the row to the sum of squares of residual
                 # right hand sides.
                 #@label L230  
-                @debug "zi[in=$in]=$zi"
+                #@debug "zi[in=$in]=$zi"
                 fp = fp + zi * zi
                 in = wrk1.nummer[in]
                 #@goto  L150    
@@ -326,7 +336,7 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
         if is_full_rank
             # backward substitution in case of full rank.        
             fpback!(wrk1.a, wrk1.f, ncof, iband, spline.c)           
-            #write_c(io, spline.c, ncof)
+            write_c(io, spline.c, ncof)
             rank = ncof
             for i in 1:ncof #        do 275 i=1,ncof
                 wrk1.q[i,1] = wrk1.a[i,1] / dmax              
@@ -348,7 +358,7 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
             lh = lf + ncof
             la = lh + iband
             sq, rank = fprank!(wrk1.q, wrk1.ff, ncof, iband,  sigma, spline.c,  wrk2)#wrk(la), wrk(lf), wrk(lh))
-            #write_c(io, spline.c, ncof)
+            write_c(io, spline.c, ncof)
             
             for i in 1:ncof # do 295 i=1,ncof
                 wrk1.q[i, 1] = wrk1.q[i, 1] / dmax
@@ -364,7 +374,7 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
         end
         # test whether the least-squares spline is an acceptable solution.
         if (iopt < 0) @goto  L820 end
-        @debug "fp=$fp"
+        #@debug "fp=$fp"
         fpms = fp - s
         if (abs(fpms) <= acc) # if(fp) 815,815,820
             if fp < 0 @goto L815
@@ -404,32 +414,35 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
             l2 = ly + 1 + nxx
             jrot = lx * nk1y + ly
             in = wrk1.index[num]
-            @label L330  
-            if (in == 0) continue end #@goto  L360 end
-           # @debug "wrk1.spx[$in,1:$kx1] $(wrk1.spx[in,1:kx1])"
-            write_sp(io, wrk1.spx, in, kx1)
-            #@debug "wrk1.spy[$in,1:$ky1] $(wrk1.spy[in,1:ky1])"
-            write_sp(io, wrk1.spy, in, ky1)
-            store = 0.
-            i1 = jrot
-            for i in 1:kx1 # do 350 i=1,kx1
-                hxi = wrk1.spx[in,i]
-                j1 = i1
-                for j in 1:ky1 # do 340 j=1,ky1
-                    j1 = j1 + 1
-                    store = store + hxi * wrk1.spy[in, j] * spline.c[j1]
-                    #@label L340   #     continue
+            while true #@label L330  
+                if (in == 0) break end #@goto  L360 end
+                # @debug "wrk1.spx[$in,1:$kx1] $(wrk1.spx[in,1:kx1])"
+                write_sp(io, wrk1.spx, in, kx1)
+                #@debug "wrk1.spy[$in,1:$ky1] $(wrk1.spy[in,1:ky1])"
+                write_sp(io, wrk1.spy, in, ky1)
+                store = 0.
+                i1 = jrot
+                for i in 1:kx1 # do 350 i=1,kx1
+                    hxi = wrk1.spx[in,i]
+                    j1 = i1
+                    for j in 1:ky1 # do 340 j=1,ky1
+                        j1 = j1 + 1
+                        store = store + hxi * wrk1.spy[in, j] * spline.c[j1]
+                        #@label L340   #     continue
+                    end
+                    i1 = i1 + nk1y
+                    #@label L350  #    continue
                 end
-                i1 = i1 + nk1y
-                #@label L350  #    continue
-            end
-            store = (spline.w[in] * (spline.z[in] - store))^2
-            wrk1.fpint[l1] = wrk1.fpint[l1] + store
-            wrk1.coord[l1] = wrk1.coord[l1] + store * spline.x[in]
-            wrk1.fpint[l2] = wrk1.fpint[l2] + store
-            wrk1.coord[l2] = wrk1.coord[l2] + store * spline.y[in]
-            in = wrk1.nummer[in]
-            @goto  L330
+                store = (spline.w[in] * (z[in] - store))^2
+                wrk1.fpint[l1] = wrk1.fpint[l1] + store
+                wrk1.coord[l1] = wrk1.coord[l1] + store * x[in]
+                wrk1.fpint[l2] = wrk1.fpint[l2] + store
+                wrk1.coord[l2] = wrk1.coord[l2] + store * y[in]
+                #@debug "wrk1.coord[$l1] =$(wrk1.coord[l1])"
+                #@debug "wrk1.coord[$l2] =$(wrk1.coord[l2])"
+                #@debug "x[$in]=$(x[in])   y[$in]=$(y[in])"
+                in = wrk1.nummer[in]
+            end #@goto  L330
             #@label L360  #  continue
         end
         # find the interval for which fpint is maximal on the condition that
@@ -441,7 +454,6 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
         l2 = nrint
         if (nx == nxe) l1 = nxx + 1 end
         if (ny == nye) l2 = nxx end
-        @debug "prior knot increase nx:$nx, nxe:$nxe l1:$l1  ny:$ny nye:$nye  l2:$l2"
         if (l1 > l2) @goto  L810 end
         for i in l1:l2 # do 380 i=l1,l2
             if (fpmax < wrk1.fpint[i]) # @goto  L380 end
@@ -450,8 +462,6 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
             end #@label L380  #  continue
         end
         wrt_fpint(io,wrk1.fpint,  l1, l2,  fpmax)
-        @debug "l1=$l1, l2=$l2, fpmax=$fpmax"
-        @debug wrk1.fpint[l1:l2]
         # test whether we cannot further increase the number of knots.
         if (l == 0) @goto  L785 end
         # calculate the position of the new knot.
@@ -471,7 +481,7 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
             #@label L390 #   continue
         end
         spline.tx[jxy] = arg
-        @debug "New knot in x at $jxy = $arg"
+        #@debug "New knot in x at $jxy = $arg"
         nx = nx + 1
         @goto  L420
         # addition in the y-direction.
@@ -488,7 +498,7 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
                                 #   @label L410   # continue
         end
         spline.ty[jxy] = arg
-        @debug "New knot in y at $jxy = $arg"
+        #@debug "New knot in y at $jxy = $arg"
         ny = ny + 1
         # restart the computations with the new set of knots.
         @label L420  # continue
@@ -496,9 +506,9 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
    # test whether the least-squares polynomial is a solution of our
    # approximation problem.
     @label L430  
-    @debug "@ label 430"
+   # @debug "@ label 430"
     if (ier == (-2)) 
-        @debug "L430. as ier = -2 jumping to L830. nk1x = $nk1x"
+        #@debug "L430. as ier = -2 jumping to L830. nk1x = $nk1x"
         @goto  L830 end
         #= 
         cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -521,7 +531,7 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
         c new value of p such that r(p)=s. convergence is guaranteed by taking c
         c f1 > 0 and f3 < 0.                                                   c
         cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc =#
-    @debug "Entering Part 2. smoothing spline until fp($fp) -> s($s)"        
+   #@debug "Entering Part 2. smoothing spline until fp($fp) -> s($s)"        
     kx2 = kx1 + 1
         # test whether there are interior knots in the x-direction.
     if (nk1x != kx1)# @goto  L440 end
@@ -542,12 +552,12 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
     p3 = -one
     f3 = fpms
     p = 0.
-    @debug "smoothing initial values: p1:$p1 f1:$f1 p3:$p3 f3:$f3"
+    #@debug "smoothing initial values: p1:$p1 f1:$f1 p3:$p3 f3:$f3"
     for i in 1:ncof# do 460 i=1,ncof
         p = p + wrk1.a[i, 1]
         # @label L460  #continue
     end
-    @debug "p=$p"
+    #@debug "p=$p"
     rn = ncof
     @assert p != 0.0
     p = rn / p
@@ -559,7 +569,7 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
     ich3 = 0
     # iteration process to find the root of f(p)=s.
     for iter in 1:maxit # do 770 iter=1,maxit
-        @debug "Start of iteration. p=$p"
+        #@debug "Start of iteration. p=$p"
         pinv = one / p
         # store the triangularized observation matrix into q.
         for i in 1:ncof# do 480 i=1,ncof
@@ -690,9 +700,9 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
             if (wrk1.q[i, 1] <= sigma) @goto  L670 end
         end  # @label L660 #   continue
         # backward substitution in case of full rank.
-        @debug "calling fpback" 
+        #@debug "calling fpback" 
         fpback!(wrk1.q, wrk1.ff, ncof, iband4,  spline.c)
-        @debug "after fpback c:" spline.c[1:ncof]
+        #@debug "after fpback c:" spline.c[1:ncof]
         rank = ncof
         @goto  L675
         # in case of rank deficiency, find the minimum norm solution.
@@ -703,46 +713,16 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
         lh = lf + ncof
         la = lh + iband4
         #        sq, rank = fprank(wrk1.q, wrk1.ff, ncof, iband,  sigma, spline.c,  wrk2)#wrk(la), wrk(lf), wrk(lh))
-        @debug "calling fprank" 
+        #@debug "calling fprank" 
         sq, rank = fprank(wrk1.q, wrk1.ff, ncof, iband4,   sigma, spline.c,  wrk2)#wrk[la],   wrk[lf], wrk[lh])
-        @debug "after fprank c:" spline.c[1:ncof]
+        #@debug "after fprank c:" spline.c[1:ncof]
         @label L675
         for i in 1:ncof #    do 680 i=1,ncof
             wrk1.q[i, 1] = wrk1.q[i, 1] / dmax
         end#  @label L680    continue
         #@debug "compute f(p)."
-        fp = compute_fp( nreg, nyy, nk1y,kx1,ky1, wrk1, spline)
-        #=
-        fp = 0.
-        for num in 1:nreg # do 720 num = 1,nreg
-            num1 = num - 1
-            lx = Int(trunc(num1 / nyy))
-            ly = num1 - lx * nyy
-            jrot = lx * nk1y + ly
-            in = wrk1.index[num]
-            #@label L690
-            while (in != 0) #@goto  L720 end
-                store = 0.
-                i1 = jrot
-                for i in 1:kx1 # do 710 i=1,kx1
-                    hxi = wrk1.spx[in,i]
-                    j1 = i1
-                    for j in 1:ky1 # do 700 j=1,ky1
-                        j1 = j1 + 1
-                        @debug "store = $store + $hxi * $(wrk1.spy[in,j]) * $(spline.c[j1])"
-                        store = store + hxi * wrk1.spy[in,j] * spline.c[j1]
-                    end#  @label L700        continue
-                    i1 = i1 + nk1y
-                end#  @label L710      continue
-                @debug "fp calc num=$num, fp= $fp + ($(spline.w[in]) *($(spline.z[in]) - $store))^2"
-                fp = fp + (spline.w[in] * (spline.z[in] - store))^2
-                
-                in = wrk1.nummer[in]
-            end#    @goto  L690
-
-            #label L720  #  continue
-        end
-        =#
+        fp = compute_fp( nreg, nyy, nk1y,kx1,ky1, wrk1, spline, z)
+ 
         #@debug "fp now $fp"
         # test whether the approximation sp(x,y) is an acceptable solution.
         fpms = fp - s
@@ -758,16 +738,16 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
         @info ("smothing p1:$p1  f1:$f1, p:$p, f2=$f2, p3:$p3, f3=$f3")
         if (ich3 != 0) @goto  L740 end
         if ((f2 - f3) > acc) @goto  L730 end
-        @debug "our initial choice of p is too large."
+        #@debug "our initial choice of p is too large."
         
         p3 = p2
         f3 = f2
         p = p * con4
        
         if (p <= p1) 
-            @debug " p($p) < p1($p1)"
+            #@debug " p($p) < p1($p1)"
             p = p1 * con9 + p2 * con1  
-            @debug "p now $p"
+            #@debug "p now $p"
         end
         @goto  L770
         @label L730
@@ -775,16 +755,16 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
         @label L740    
         if (ich1 != 0) @goto  L760 end
         if ((f1 - f2) > acc) @goto  L750 end
-        @debug "our initial choice of p is too small"
+        #@debug "our initial choice of p is too small"
         p1 = p2
         f1 = f2
         p = p / con4
-        @debug "p=$p"
+        #@debug "p=$p"
         if (p3 < 0.) @goto  L770 end
         if (p >= p3)
-            @debug " p($p) >= p3($p3)"
+            #@debug " p($p) >= p3($p3)"
              p = p2 * con1 + p3 * con9
-            @debug "p now $p"
+            #@debug "p now $p"
         end
        
         @goto  L770
@@ -802,87 +782,68 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
         p, p1, p2, p3, f1, f2, f3 = fprati(p1, f1, p2, f2, p3, f3)
         @info ("return fprati $p,$p1,$f1,$p2,$f2,$p3,$f3")
         @label L770 # continue
-        @debug " New p=$p"
+        #@debug " New p=$p"
     end
         # error codes and messages.
     @label L780  
-    @debug "L780"
+    #@debug "L780"
     ier = lwest
     @goto  L830
     @label L785  
-    @debug "L785"
+    #@debug "L785"
     ier = 5
     @goto  L830
     @label L790  
-    @debug "L790"
+    #@debug "L790"
     ier = 4
     @goto  L830
     @label L795  
-    @debug "L795"
+    #@debug "L795"
     ier = 3
     @goto  L830
     @label L800  
-    @debug "L800"
+    # @debug "L800"
     ier = 2
     @goto  L830
     @label L810  
-    @debug "L810"
+    #@debug "L810"
     ier = 1
     @goto  L830
     @label L815  
-    @debug "L830"
+    #@debug "L830"
     ier = -1
     fp = 0.
     @label L820 
-    @debug "L820"
+    #@debug "L820"
 
     if (ncof != rank) ier = -rank end
         # test whether x and y are in the original order.
     @label L830  
-    @debug "Label 830. ichang = $ichang"
-    if (ichang < 0) @goto  L930 end
-        # if not, interchange x and y once more.
-    l1 = 1
-    for i in 1:nk1x# do 840 i=1,nk1x
-        l2 = i
-        for i in 1:nk1y # do 840 j=1,nk1y
-            wrk1.f[l2] = spline.c[l1]
-            l1 = l1 + 1
-            l2 = l2 + nk1x
-        end #  @label L840  continue
-    end
-    for i in 1:ncof # do 850 i=1,ncof
-        spline.c[i] = wrk1.f[i]
-    end #      @label L850  continue
-    for i in 1:m # do 860 i=1,m
-        store = spline.x[i]
-        spline.x[i] = spline.y[i]
-        spline.y[i] = store
-    end #  @label L860  continue
-    n = min(nx, ny)
-    for i in 1:n # do 870 i=1,n
-        store = spline.tx[i]
-        spline.tx[i] = spline.ty[i]
-        spline.ty[i] = store
-    end#  @label L870  continue
-    n1 = n + 1
-    if (nx - ny) < 0 @goto L880
-    elseif nx == ny @goto  L920
-        else @goto  L900 end
-    @label L880  
-    for i in n1:ny # do 890 i=n1,ny
-        spline.tx[i] = spline.ty[i]
-    end#  @label L890  continue
-    @goto  L920
-    @label L900 
-    for i in n1:nx # do 910 i=n1,nx
-        spline.ty[i] = spline.tx[i]
-    end #  @label L910  continue
-    @label L920  
-    l = nx
-    nx = ny
-    ny = l
-    @label L930  
+    #@debug "Label 830. ichang = $ichang"
+    if (ichang >= 0) # @goto  L930 end
+        #  interchange x and y once more.
+        # swap the bspline coefficients
+        l1 = 1
+        for i in 1:nk1x  # do 840
+            l2 = i
+            for j in 1:nk1y #do 840
+                wrk1.f[l2] = spline.c[l1]
+                l1 += 1
+                l2 += nk1x
+            end
+        end #840
+        for i in 1:ncof
+            spline.c[i] = wrk1.f[i]
+        end
+
+
+        (ichang,x, y, spline, x0,x1,y0,y1, nx,ny, nxe, nye, nxx, nyy, kx, ky) = swap_xy!(m,
+                ichang, x, y, spline, x0,x1,y0,y1, nx,ny, nxe, nye, nxx, nyy, kx, ky
+            )   
+            kx1 = kx + 1
+            ky1 = ky + 1 
+    end 
+    #@label L930  
     if (iopt < 0) @goto  L940 end
     spline.nx = nx
     spline.ny = ny
@@ -893,7 +854,7 @@ function fpsurf!(iopt,m, spline::Spline,s,nxest,nyest,
 end
 
 """Compute f(p)"""
-function compute_fp( nreg, nyy, nk1y,kx1,ky1, wrk1, spline)
+function compute_fp( nreg, nyy, nk1y,kx1,ky1, wrk1, spline, z)
     fp = 0.
     for num in 1:nreg # do 720 num = 1,nreg
         num1 = num - 1
@@ -910,13 +871,13 @@ function compute_fp( nreg, nyy, nk1y,kx1,ky1, wrk1, spline)
                 j1 = i1
                 for j in 1:ky1 # do 700 j=1,ky1
                     j1 = j1 + 1
-                    @debug "store = $store + $hxi * $(wrk1.spy[in,j]) * $(spline.c[j1])"
+                    #@debug "store = $store + $hxi * $(wrk1.spy[in,j]) * $(spline.c[j1])"
                     store = store + hxi * wrk1.spy[in,j] * spline.c[j1]
                 end#  @label L700        continue
                 i1 = i1 + nk1y
             end#  @label L710      continue
-            @debug "fp calc num=$num, fp= $fp + ($(spline.w[in]) *($(spline.z[in]) - $store))^2"
-            fp = fp + (spline.w[in] * (spline.z[in] - store))^2
+            #@debug "fp calc num=$num, fp= $fp + ($(spline.w[in]) *($(z[in]) - $store))^2"
+            fp = fp + (spline.w[in] * (z[in] - store))^2
             
             in = wrk1.nummer[in]
         end#    @goto  L690
@@ -963,14 +924,12 @@ function mkTriangle!(irot, iband, zi, h::Vector, a::Matrix, f::Vector)
     end #        @label L220      continue
     return zi
 end
-
-"""interchange the variables x and y"""
-function swap_xy!(m, ichang, spline, x0,x1,y0,y1, nx,ny, nxe, nye, nxx, nyy, kx, ky)
  
+"""interchange the variables x and y"""
+function swap_xy!(m, ichang,x, y, spline, x0,x1,y0,y1, nx,ny, nxe, nye, nxx, nyy, kx, ky)
+    #@debug "Swapping x and y"
     ichang = -ichang
-    for i in 1:m 
-        (spline.x[i], spline.y[i]) =(spline.y[i], spline.x[i])
-    end 
+    
     (x0,y0) = (y0, x0)
     (x1,y1)=(y1, x1)            
     n = min(nx, ny)
@@ -993,7 +952,5 @@ function swap_xy!(m, ichang, spline, x0,x1,y0,y1, nx,ny, nxe, nye, nxx, nyy, kx,
     (nxe, nye)=(nye, nxe)
     (nxx, nyy)=(nyy, nxx)
     (kx,ky)=(ky,kx)
-    kx1 = kx + 1
-    ky1 = ky + 1
-    return ichang, spline, x0,x1,y0,y1, nx,ny, nxe, nye, nxx, nyy, kx, ky
+    return ichang,y, x, spline, x0,x1,y0,y1, nx,ny, nxe, nye, nxx, nyy, kx, ky
 end
